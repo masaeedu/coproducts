@@ -74,3 +74,7 @@ instance Coproduct (->) (Flip Index t) (ProxyF t)
 instance GFunctor ProxyArrow (->) ProxyF
   where
   gfmap = sum_map (Proxy :: Proxy Index)
+
+-- Try it out
+test :: ProxyF '(a, b, c, d, e, Int, g)
+test = gidentity `gfmap` Pure 42
