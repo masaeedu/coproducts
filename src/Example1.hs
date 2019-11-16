@@ -11,14 +11,14 @@ data T a
   | Bar [a]
   deriving (Show)
 
-data I (c :: Symbol) a
+data Index (c :: Symbol) a
   where
-  IFoo :: Maybe a -> I "Foo" a
-  IBar :: [a]     -> I "Bar" a
-deriving instance Functor (I c)
-deriving via (PlainFunctor (I c)) instance GFunctor (->) (->) (I c)
+  IFoo :: Maybe a -> Index "Foo" a
+  IBar :: [a]     -> Index "Bar" a
+deriving instance Functor (Index c)
+deriving via (PlainFunctor (Index c)) instance GFunctor (->) (->) (Index c)
 
-instance Product (Op (->)) (Flip I a) (T a)
+instance Product (Op (->)) (Flip Index a) (T a)
   where
   extract = Op $ \case
     (Flip (IFoo x)) -> Foo x
@@ -29,4 +29,4 @@ instance Product (Op (->)) (Flip I a) (T a)
     (Foo x) -> runOp m $ Flip $ IFoo x
 
 instance GFunctor (->) (->) T where
-  gfmap = sum_map (Proxy :: Proxy I)
+  gfmap = sum_map (Proxy :: Proxy Index)
