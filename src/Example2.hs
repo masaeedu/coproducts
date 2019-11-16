@@ -1,12 +1,16 @@
 module Example2 where
 
+import Prelude hiding (id, (.))
+
 import Unsafe.Coerce
 import GHC.TypeLits
+
+import Control.Category
 
 import Data.Proxy
 import qualified Data.Bifunctor as B
 
-import Coproducts (Coproduct(..), GCategory(..), GFunctor(..), PlainFunctor(..), Flip(..), sum_map)
+import Coproducts (Product(..), GFunctor(..), Flip(..), Op(..), sum_map)
 
 -- A sum type that we would like to examine in a "deconstructed" form
 data ProxyF t
@@ -43,10 +47,10 @@ data ProxyArrow t1 t2
     (v1 -> v2)               ->
     ProxyArrow '(a'1, a1, b'1, b1, m1, r1, v1) '(a'2, a2, b'2, b2, m2, r2, v2)
 
-instance GCategory ProxyArrow
+instance Category ProxyArrow
   where
-  gidentity = unsafeCoerce $ ProxyArrow id id id id id id id
-  (<<<) (ProxyArrow f1 f2 f3 f4 f5 f6 f7) (ProxyArrow g1 g2 g3 g4 g5 g6 g7) = ProxyArrow (f1 . g1) (g2 . f2) (g3 . f3) (f4 . g4) (f5 . g5) (f6 . g6) (f7 . g7)
+  id = unsafeCoerce $ ProxyArrow id id id id id id id
+  (.) (ProxyArrow f1 f2 f3 f4 f5 f6 f7) (ProxyArrow g1 g2 g3 g4 g5 g6 g7) = ProxyArrow (f1 . g1) (g2 . f2) (g3 . f3) (f4 . g4) (f5 . g5) (f6 . g6) (f7 . g7)
 
 -- Witness that the indexing type is a functor
 instance GFunctor ProxyArrow (->) (Index c)
@@ -58,17 +62,19 @@ instance GFunctor ProxyArrow (->) (Index c)
     (IPure r)          -> IPure $ f6 $ r
 
 -- Witness that `ProxyF` is a coproduct over the indexing family
-instance Coproduct (->) (Flip Index t) (ProxyF t)
+instance Product (Op (->)) (Flip Index t) (ProxyF t)
   where
-  build (Flip (IRequest (a', f))) = Request a' f
-  build (Flip (IRespond f))       = Respond f
-  build (Flip (IM mv))            = M mv
-  build (Flip (IPure r))          = Pure r
+  extract = Op $ \case
+    (Flip (IRequest (a', f))) -> Request a' f
+    (Flip (IRespond f))       -> Respond f
+    (Flip (IM mv))            -> M mv
+    (Flip (IPure r))          -> Pure r
 
-  match m (Request a' f) = m $ Flip $ IRequest $ (a', f)
-  match m (Respond f)    = m $ Flip $ IRespond $ f
-  match m (M mv)         = m $ Flip $ IM       $ mv
-  match m (Pure r)       = m $ Flip $ IPure    $ r
+  decompose m = Op $ \case
+    (Request a' f) -> runOp m $ Flip $ IRequest $ (a', f)
+    (Respond f)    -> runOp m $ Flip $ IRespond $ f
+    (M mv)         -> runOp m $ Flip $ IM       $ mv
+    (Pure r)       -> runOp m $ Flip $ IPure    $ r
 
 -- Witness the functor instance for `ProxyF`
 instance GFunctor ProxyArrow (->) ProxyF
@@ -77,4 +83,4 @@ instance GFunctor ProxyArrow (->) ProxyF
 
 -- Try it out
 test :: ProxyF '(a, b, c, d, e, Int, g)
-test = gidentity `gfmap` Pure 42
+test = id `gfmap` Pure 42

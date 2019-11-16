@@ -1,35 +1,17 @@
 module Coproducts where
 
-import Unsafe.Coerce
+import Prelude hiding (id, (.))
+
 import Data.Proxy
-import GHC.TypeLits
 
 import Control.Category (Category)
-import qualified Control.Category as C
-
-import qualified Data.Bifunctor as B
+import Control.Category
 
 -- Some general category theory nonsense
 type Hom c = c -> c -> *
 
--- Small categories
-class GCategory (p :: Hom c)
-  where
-  gidentity :: forall a. p a a
-  (<<<) :: forall a b c. p b c -> p a b -> p a c
-
-newtype PlainCategory p a b = PlainCategory (p a b)
-  deriving Category
-
-instance Category c => GCategory (PlainCategory c)
-  where
-  gidentity = C.id
-  (<<<) = (C.<<<)
-
-deriving via (PlainCategory (->)) instance GCategory (->)
-
 -- Small functors
-class (GCategory p, GCategory q) => GFunctor (p :: Hom c) (q :: Hom d) (f :: c -> d) | f -> p q
+class (Category p, Category q) => GFunctor (p :: Hom c) (q :: Hom d) (f :: c -> d) | f -> p q
   where
   gfmap :: p a b -> q (f a) (f b)
 
@@ -42,14 +24,25 @@ instance Functor f => GFunctor (->) (->) (PlainFunctor f)
   where
   gfmap = fmap
 
--- Generalized coproduct of an indexed family of objects
-class GCategory p => Coproduct (p :: Hom c) (idx :: i -> c) (x :: c)
+-- Generalized product of an indexed family of objects
+class Category p => Product (p :: Hom c) (idx :: i -> c) (x :: c)
   where
-  build :: forall i. idx i `p` x
-  match :: forall y. (forall i. idx i `p` y) -> x `p` y
+  extract   :: forall i. x `p` (idx i)
+  decompose :: forall y. (forall i. y `p` idx i) -> y `p` x
+
+newtype Op p a b = Op { runOp :: p b a }
+
+instance Category p => Category (Op p)
+  where
+  id = Op id
+  (Op f) . (Op g) = Op $ g . f
+
+type Coproduct p idx x = Product (Op p) idx x
 
 -- A newtype for flipping bifunctors around (useful below)
-newtype Flip (t :: y -> x -> *) (a :: x) (b :: y) = Flip { runFlip :: t b a }
+-- TODO: Replace `Flip` with `Symmetric` constraint
+newtype Flip (t :: y -> x -> *) (a :: x) (b :: y)
+  = Flip { runFlip :: t b a }
 
 -- Getting a functor for a coproduct of functors
 sum_map ::
@@ -59,14 +52,10 @@ sum_map ::
   ) =>
   Proxy k ->
   (a `p` b) -> f a -> f b
-sum_map _ ab = match' $ build' <<< gfmap ab
+sum_map _ ab = match' $ inject' <<< gfmap ab
   where
-  -- irrelevant, but interestingly the two commented out wrong type annotations below blow up the compiler
-  -- build' :: forall i v. k i v -> f i
-  -- build' :: forall i v. k v i -> f v
-  build' :: forall i v. k i v -> f v
-  build' = build <<< Flip
+  inject' :: forall i v. k i v -> f v
+  inject' = runOp extract <<< Flip
 
   match' :: forall v y. (forall i. k i v -> y) -> f v -> y
-  match' f = match $ f <<< runFlip
--- TODO: Replace `Flip` with `Symmetric` constraint
+  match' f = runOp $ decompose $ Op $ f <<< runFlip

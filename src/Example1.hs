@@ -4,7 +4,7 @@ import GHC.TypeLits
 
 import Data.Proxy
 
-import Coproducts (Coproduct(..), GFunctor(..), PlainFunctor(..), Flip(..), sum_map)
+import Coproducts (Product(..), GFunctor(..), PlainFunctor(..), Flip(..), Op(..), sum_map)
 
 data T a
   = Foo (Maybe a)
@@ -19,13 +19,15 @@ data I (c :: Symbol) a
 deriving instance Functor (I c)
 deriving via (PlainFunctor (I c)) instance GFunctor (->) (->) (I c)
 
-instance Coproduct (->) (Flip I a) (T a)
+instance Product (Op (->)) (Flip I a) (T a)
   where
-  build (Flip (IFoo x)) = Foo x
-  build (Flip (IBar x)) = Bar x
+  extract = Op $ \case
+    (Flip (IFoo x)) -> Foo x
+    (Flip (IBar x)) -> Bar x
 
-  match m (Bar x) = m $ Flip $ IBar x
-  match m (Foo x) = m $ Flip $ IFoo x
+  decompose m = Op $ \case
+    (Bar x) -> runOp m $ Flip $ IBar x
+    (Foo x) -> runOp m $ Flip $ IFoo x
 
 instance GFunctor (->) (->) T where
   gfmap = sum_map (Proxy :: Proxy I)
