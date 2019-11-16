@@ -15,7 +15,6 @@ data I (c :: Symbol) a
   where
   IFoo :: Maybe a -> I "Foo" a
   IBar :: [a]     -> I "Bar" a
-
 deriving instance Functor (I c)
 deriving via (PlainFunctor (I c)) instance GFunctor (->) (->) (I c)
 
