@@ -1,0 +1,42 @@
+spec-version: 0.30.0
+name: coproducts
+author: Asad Saeeduddin
+maintainer: masaeedu@gmail.com
+license: MIT
+
+build-type: Simple
+
+source-dirs: src
+dependencies:
+- { name: "base", version: '>=4.12 && <4.13' }
+
+ghc-options: -Wall
+default-extensions:
+- GADTs
+
+- DeriveFunctor
+- GeneralizedNewtypeDeriving
+- DerivingVia
+- StandaloneDeriving
+
+- ScopedTypeVariables
+- RankNTypes
+- QuantifiedConstraints
+
+- LambdaCase
+- TypeApplications
+- TypeOperators
+- MultiParamTypeClasses
+- FunctionalDependencies
+
+- ConstraintKinds
+- DataKinds
+- PolyKinds
+- KindSignatures
+
+- FlexibleInstances
+- FlexibleContexts
+
+library: {}
+executable:
+  main: Main.hs
