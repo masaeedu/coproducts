@@ -27,8 +27,8 @@ instance Functor f => GFunctor (->) (->) (PlainFunctor f)
 -- Generalized product of an indexed family of objects
 class Category p => Product (p :: Hom c) (idx :: i -> c) (x :: c)
   where
-  extract   :: forall i. x `p` (idx i)
-  decompose :: forall y. (forall i. y `p` idx i) -> y `p` x
+  extract   :: forall k. x `p` idx k
+  decompose :: forall y. (forall k. y `p` idx k) -> y `p` x
 
 newtype Op p a b = Op { runOp :: p b a }
 
@@ -38,6 +38,12 @@ instance Category p => Category (Op p)
   (Op f) . (Op g) = Op $ g . f
 
 type Coproduct p idx x = Product (Op p) idx x
+
+inject :: Coproduct p idx x => idx k `p` x
+inject = runOp extract
+
+match :: Coproduct p idx x => (forall k. idx k `p` y) -> x `p` y
+match cases = runOp $ decompose $ Op $ cases
 
 -- A newtype for flipping bifunctors around (useful below)
 -- TODO: Replace `Flip` with `Symmetric` constraint
@@ -55,7 +61,7 @@ sum_map ::
 sum_map _ ab = match' $ inject' <<< gfmap ab
   where
   inject' :: forall i v. k i v -> f v
-  inject' = runOp extract <<< Flip
+  inject' = inject <<< Flip
 
   match' :: forall v y. (forall i. k i v -> y) -> f v -> y
-  match' f = runOp $ decompose $ Op $ f <<< runFlip
+  match' f = match $ f <<< runFlip
