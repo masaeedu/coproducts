@@ -7,7 +7,7 @@ import Data.Functor.Compose
 
 import Control.Category
 
-import Coproducts (Product(..), Op(..), match, fold)
+import Coproducts (Product(..), Op(..), fold)
 
 data Key (k :: Symbol)
   where

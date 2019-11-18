@@ -2,8 +2,6 @@ module Example1 where
 
 import GHC.TypeLits
 
-import Data.Proxy
-
 import Coproducts (Product(..), GFunctor(..), PlainFunctor(..), Flip(..), Op(..))
 
 data T a
