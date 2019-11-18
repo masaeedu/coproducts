@@ -16,7 +16,6 @@ default-extensions:
 
 - DeriveFunctor
 - GeneralizedNewtypeDeriving
-- DerivingVia
 - StandaloneDeriving
 
 - ScopedTypeVariables
@@ -38,7 +37,6 @@ default-extensions:
 - FlexibleInstances
 - FlexibleContexts
 - UndecidableInstances
-- AllowAmbiguousTypes
 
 library: {}
 executable:

@@ -3,16 +3,38 @@ module Example3 where
 import Prelude hiding (id, (.))
 import GHC.TypeLits
 
+import Data.Proxy
 import Data.Functor.Compose
+import Data.Bifunctor
 
 import Control.Category
 
-import Coproducts (Product(..), Op(..), fold)
+import Coproducts (Product(..), Op(..), GFunctor(..), Wat(..), Biflip(..), Singleton(..), fold)
 
 data Key (k :: Symbol)
   where
   SFst :: Key "Fst"
   SSnd :: Key "Snd"
+
+-- APPROACH 1 {{{
+
+-- instance Singleton Key "Fst"
+--   where
+--   reify _ = SFst
+
+-- instance Singleton Key "Snd"
+--   where
+--   reify _ = SSnd
+
+-- }}}
+
+-- APPROACH 2 {{{
+
+instance Singleton Key c
+  where
+  reify = _
+
+-- }}}
 
 data Val a b (k :: Symbol)
   where
@@ -21,30 +43,29 @@ data Val a b (k :: Symbol)
 
 instance Product (Op (->)) Key (Val a b) (Either a b)
   where
-  extract _ = Op $ \case
+  extract _ _ _ = Op $ \case
     IFst a -> Left a
     ISnd b -> Right b
 
-  decompose m = Op $ \case
+  decompose _ _ m = Op $ \case
     Left a  -> runOp (m SFst) $ IFst a
     Right b -> runOp (m SSnd) $ ISnd b
 
 instance Product (->) Key (Val a b) (a, b)
   where
-  extract SFst (a, _) = IFst $ a
-  extract SSnd (_, b) = ISnd $ b
+  extract _ _ SFst (a, _) = IFst $ a
+  extract _ _ SSnd (_, b) = ISnd $ b
 
-  decompose m y = (runIFst $ m SFst y, runISnd $ m SSnd y)
+  decompose _ _ m y = (runIFst $ m SFst y, runISnd $ m SSnd y)
 
-instance Product (->) Key (Compose (Op (->) y) (Val a b)) (a -> y, b -> y)
+instance Singleton Key k => Wat (Biflip Val k)
   where
-  extract SFst (a, _) = Compose $ Op $ a <<< runIFst
-  extract SSnd (_, b) = Compose $ Op $ b <<< runISnd
+  fwd (Biflip (IFst x)) = gfmap (Op (runIFst <<< runBiflip)) x
+  fwd (Biflip (ISnd y)) = gfmap (Op (runISnd <<< runBiflip)) y
 
-  decompose m y =
-    ( (<<< IFst) $ runOp $ getCompose $ m SFst y
-    , (<<< ISnd) $ runOp $ getCompose $ m SSnd y
-    )
+  bwd fa = case (reify (Proxy @k)) of
+    SFst -> Biflip $ IFst $ gfmap (Op (Biflip <<< IFst)) $ fa
+    SSnd -> Biflip $ ISnd $ gfmap (Op (Biflip <<< ISnd)) $ fa
 
-either' :: forall a b x. (a -> x, b -> x) -> Either a b -> x
-either' = fold @Key @(Val a b)
+either' :: forall a b x. (Op (->) x a, Op (->) x b) -> Either a b -> x
+either' = fold (Proxy @Key) (Proxy @(Val a b))

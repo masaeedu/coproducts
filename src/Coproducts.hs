@@ -1,12 +1,9 @@
-{-# LANGUAGE ImpredicativeTypes, AllowAmbiguousTypes #-}
-
 module Coproducts where
 
 import Prelude hiding (id, (.))
 
 import Data.Proxy
 import Data.Functor.Compose
-import Data.Functor.Const
 
 import Control.Category (Category)
 import Control.Category
@@ -23,6 +20,10 @@ instance Category p => Category (Op p)
   where
   id = Op id
   (Op f) . (Op g) = Op $ g . f
+
+instance GFunctor (Op (->)) (->) (Op (->) x)
+  where
+  gfmap f g = f <<< g
 
 -- }}}
 
@@ -41,6 +42,18 @@ instance Functor f => GFunctor (->) (->) (PlainFunctor f)
   where
   gfmap = fmap
 
+class Wat t
+  where
+  fwd ::
+    GFunctor (Op (->)) (->) f =>
+    t (f a) (f b) -> f (t a b)
+
+  bwd ::
+    GFunctor (Op (->)) (->) f =>
+    f (t a b) -> t (f a) (f b)
+
+newtype Biflip t c a b = Biflip { runBiflip :: t a b c }
+
 -- }}}
 
 -- INDEXED PRODUCTS {{{
@@ -51,33 +64,46 @@ class
     (p :: Hom c)
     (key :: i -> *)
     (val :: i -> c)
-    (x :: c)
+    (prod :: c)
   where
-  extract   :: key k -> x `p` val k
-  decompose :: (forall k. key k -> y `p` val k) -> y `p` x
+  extract   :: Proxy key -> Proxy val -> key k -> prod `p` val k
+  decompose :: Proxy key -> Proxy val -> (forall k. key k -> y `p` val k) -> y `p` prod
+
+instance
+  ( forall c. Wat (Biflip val c)
+  , forall x y. Product (->) key (val x y) (prod x y)
+  , GFunctor (Op (->)) (->) f
+  ) =>
+  Product
+    (->)
+    key
+    (Compose f (val a b))
+    (prod (f a) (f b))
+  where
+  extract _ _ k prod = Compose $ gfmap (Op Biflip) $ fwd $ Biflip $ extract key val k prod
+    where
+    key = Proxy @key
+    val = Proxy @(val (f a) (f b))
+
+  decompose _ _ m = decompose key val (\k y -> runBiflip $ bwd $ gfmap (Op runBiflip) $ getCompose $ m k y)
+    where
+    key = Proxy @key
+    val = Proxy @(val (f a) (f b))
 
 type Coproduct p key val x = Product (Op p) key val x
 
 type UniversalProduct   p key val prod = forall t. Product   p key (val t) (prod t)
 type UniversalCoproduct p key val sum  = forall t. Coproduct p key (val t) (sum t)
 
-inject :: Coproduct p key val x => key k -> val k `p` x
-inject s = runOp $ extract s
-
-match :: Coproduct p key val x => (forall k. key k -> val k `p` y) -> x `p` y
-match cases = runOp $ decompose $ Op <<< cases
-
-extract' :: forall key val p prod k.
-  Product p key val prod =>
-  key k -> prod `p` val k
-extract' = extract
-
-decompose' :: forall key val p prod y.
-  Product p key val prod =>
-  (forall k. key k -> y `p` val k) -> y `p` prod
-decompose' = decompose
+-- }}}
 
 -- }}}
+
+-- SINGLETONS {{{
+
+class Singleton (f :: k -> *) (i :: k) | i -> f
+  where
+  reify :: Proxy i -> f i
 
 -- }}}
 
@@ -90,5 +116,5 @@ fold ::
   ( Product (->) key (Compose (Op (->) y) val) prod
   , Coproduct (->) key val sum
   ) =>
-  prod -> sum -> y
-fold cases = runOp $ decompose' @key @val $ getCompose <<< flip extract cases
+  Proxy key -> Proxy val -> prod -> sum -> y
+fold key val cases = runOp $ decompose key val $ getCompose <<< flip (extract key Proxy) cases
