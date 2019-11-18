@@ -1,16 +1,33 @@
+{-# LANGUAGE ImpredicativeTypes, AllowAmbiguousTypes #-}
+
 module Coproducts where
 
 import Prelude hiding (id, (.))
 
 import Data.Proxy
+import Data.Functor.Compose
+import Data.Functor.Const
 
 import Control.Category (Category)
 import Control.Category
 
--- Some general category theory nonsense
+-- CATEGORY THEORY {{{
+
 type Hom c = c -> c -> *
 
--- Small functors
+-- OPPOSITE CATEGORIES {{{
+
+newtype Op p a b = Op { runOp :: p b a }
+
+instance Category p => Category (Op p)
+  where
+  id = Op id
+  (Op f) . (Op g) = Op $ g . f
+
+-- }}}
+
+-- FUNCTORS {{{
+
 class (Category p, Category q) => GFunctor (p :: Hom c) (q :: Hom d) (f :: c -> d) | f -> p q
   where
   gfmap :: p a b -> q (f a) (f b)
@@ -24,44 +41,54 @@ instance Functor f => GFunctor (->) (->) (PlainFunctor f)
   where
   gfmap = fmap
 
--- Generalized product of an indexed family of objects
-class Category p => Product (p :: Hom c) (idx :: i -> c) (x :: c)
+-- }}}
+
+-- INDEXED PRODUCTS {{{
+
+class
+  Category p =>
+  Product
+    (p :: Hom c)
+    (key :: i -> *)
+    (val :: i -> c)
+    (x :: c)
   where
-  extract   :: forall k. x `p` idx k
-  decompose :: forall y. (forall k. y `p` idx k) -> y `p` x
+  extract   :: key k -> x `p` val k
+  decompose :: (forall k. key k -> y `p` val k) -> y `p` x
 
-newtype Op p a b = Op { runOp :: p b a }
+type Coproduct p key val x = Product (Op p) key val x
 
-instance Category p => Category (Op p)
-  where
-  id = Op id
-  (Op f) . (Op g) = Op $ g . f
+type UniversalProduct   p key val prod = forall t. Product   p key (val t) (prod t)
+type UniversalCoproduct p key val sum  = forall t. Coproduct p key (val t) (sum t)
 
-type Coproduct p idx x = Product (Op p) idx x
+inject :: Coproduct p key val x => key k -> val k `p` x
+inject s = runOp $ extract s
 
-inject :: Coproduct p idx x => idx k `p` x
-inject = runOp extract
+match :: Coproduct p key val x => (forall k. key k -> val k `p` y) -> x `p` y
+match cases = runOp $ decompose $ Op <<< cases
 
-match :: Coproduct p idx x => (forall k. idx k `p` y) -> x `p` y
-match cases = runOp $ decompose $ Op $ cases
+extract' :: forall key val p prod k.
+  Product p key val prod =>
+  key k -> prod `p` val k
+extract' = extract
 
--- A newtype for flipping bifunctors around (useful below)
--- TODO: Replace `Flip` with `Symmetric` constraint
+decompose' :: forall key val p prod y.
+  Product p key val prod =>
+  (forall k. key k -> y `p` val k) -> y `p` prod
+decompose' = decompose
+
+-- }}}
+
+-- }}}
+
+-- A newtype for flipping bifunctors around
 newtype Flip (t :: y -> x -> *) (a :: x) (b :: y)
   = Flip { runFlip :: t b a }
 
--- Getting a functor for a coproduct of functors
-sum_map ::
-  forall k f p a b.
-  ( forall i. GFunctor p (->) (k i)
-  , forall v. Coproduct (->) (Flip k v) (f v)
+fold ::
+  forall key val prod sum y.
+  ( Product (->) key (Compose (Op (->) y) val) prod
+  , Coproduct (->) key val sum
   ) =>
-  Proxy k ->
-  (a `p` b) -> f a -> f b
-sum_map _ ab = match' $ inject' <<< gfmap ab
-  where
-  inject' :: forall i v. k i v -> f v
-  inject' = inject <<< Flip
-
-  match' :: forall v y. (forall i. k i v -> y) -> f v -> y
-  match' f = match $ f <<< runFlip
+  prod -> sum -> y
+fold cases = runOp $ decompose' @key @val $ getCompose <<< flip extract cases

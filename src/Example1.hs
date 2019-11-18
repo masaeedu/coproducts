@@ -4,12 +4,17 @@ import GHC.TypeLits
 
 import Data.Proxy
 
-import Coproducts (Product(..), GFunctor(..), PlainFunctor(..), Flip(..), Op(..), sum_map)
+import Coproducts (Product(..), GFunctor(..), PlainFunctor(..), Flip(..), Op(..))
 
 data T a
   = Foo (Maybe a)
   | Bar [a]
   deriving (Show)
+
+data Key (c :: Symbol)
+  where
+  SFoo :: Key "Foo"
+  SBar :: Key "Bar"
 
 data Index (c :: Symbol) a
   where
@@ -18,15 +23,15 @@ data Index (c :: Symbol) a
 deriving instance Functor (Index c)
 deriving via (PlainFunctor (Index c)) instance GFunctor (->) (->) (Index c)
 
-instance Product (Op (->)) (Flip Index a) (T a)
+instance Product (Op (->)) Key (Flip Index a) (T a)
   where
-  extract = Op $ \case
-    (Flip (IFoo x)) -> Foo x
-    (Flip (IBar x)) -> Bar x
+  extract _ = Op $ \case
+    Flip (IFoo x) -> Foo x
+    Flip (IBar x) -> Bar x
 
   decompose m = Op $ \case
-    (Bar x) -> runOp m $ Flip $ IBar x
-    (Foo x) -> runOp m $ Flip $ IFoo x
+    Bar x -> runOp (m SBar) $ Flip $ IBar x
+    Foo x -> runOp (m SFoo) $ Flip $ IFoo x
 
-instance GFunctor (->) (->) T where
-  gfmap = sum_map (Proxy :: Proxy Index)
+-- instance GFunctor (->) (->) T where
+--   gfmap = sum_map (Proxy :: Proxy Index)

@@ -28,6 +28,7 @@ default-extensions:
 - TypeOperators
 - MultiParamTypeClasses
 - FunctionalDependencies
+- InstanceSigs
 
 - ConstraintKinds
 - DataKinds
@@ -36,6 +37,8 @@ default-extensions:
 
 - FlexibleInstances
 - FlexibleContexts
+- UndecidableInstances
+- AllowAmbiguousTypes
 
 library: {}
 executable:
